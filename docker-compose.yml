@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: my-node-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src         # Монтируем локальную директорию src в контейнер
+      - /app/node_modules      # Монтируем директорию node_modules внутри контейнера
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "run", "dev"]
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    driver: bridge
+
+volumes:
+  node_modules:
+    external: false
