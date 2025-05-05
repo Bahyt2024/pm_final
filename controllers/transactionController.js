@@ -1,14 +1,15 @@
-const TransactionModel = require('../models/transaction-model');
+
 const AccountModel = require('../models/account-model');
+const TransactionModel = require('../models/transaction-model');
 const ApiError = require('../exceptions/api-error');
 
 class TransactionController {
     // Осуществление перевода средств
     async transfer(req, res, next) {
-        const { senderAccountId, receiverAccountId, amount } = req.body;  // Получаем данные о переводе из тела запроса
+        const { senderCardNumber, receiverCardNumber, amount } = req.body;
 
-        if (!senderAccountId || !receiverAccountId || !amount) {
-            return next(ApiError.BadRequest('Все поля (отправитель, получатель, сумма) обязательны'));
+        if (!senderCardNumber || !receiverCardNumber || !amount) {
+            return next(ApiError.BadRequest('Все поля (номер карты отправителя, номер карты получателя, сумма) обязательны'));
         }
 
         if (amount <= 0) {
@@ -16,8 +17,9 @@ class TransactionController {
         }
 
         try {
-            const senderAccount = await AccountModel.findById(senderAccountId);
-            const receiverAccount = await AccountModel.findById(receiverAccountId);
+            // Находим аккаунты по номерам карт
+            const senderAccount = await AccountModel.findOne({ cardNumber: senderCardNumber });
+            const receiverAccount = await AccountModel.findOne({ cardNumber: receiverCardNumber });
 
             if (!senderAccount) {
                 return next(ApiError.NotFound('Аккаунт отправителя не найден'));
@@ -32,48 +34,72 @@ class TransactionController {
             }
 
             // Выполняем перевод
-            senderAccount.balance -= amount;  // Списываем средства с аккаунта отправителя
-            receiverAccount.balance += amount;  // Зачисляем средства на аккаунт получателя
+            senderAccount.balance -= amount;
+            receiverAccount.balance += amount;
 
             await senderAccount.save();
             await receiverAccount.save();
 
-            // Создаем запись о транзакции в блокчейне (симуляция)
-            const blockchainTransactionId = 'blockchain-id-' + Date.now();  // Симуляция ID транзакции в блокчейне
+            const blockchainTransactionId = 'blockchain-id-' + Date.now();
 
-            // Создаем запись о транзакции
+            // Создаем транзакцию с использованием аккаунтов
             const transaction = await TransactionModel.create({
-                senderAccount: senderAccountId,
-                receiverAccount: receiverAccountId,
+                senderAccount: senderAccount._id,
+                receiverAccount: receiverAccount._id,
                 amount,
-                status: 'completed',  // Статус транзакции изменен на "завершена"
-                blockchainTransactionId,  // Добавляем ID транзакции в блокчейне
+                status: 'completed',
+                blockchainTransactionId,
             });
 
             return res.json({ message: 'Перевод успешно выполнен', transaction });
         } catch (error) {
+            console.error('Ошибка при выполнении перевода:', error);
             return next(ApiError.InternalServerError('Ошибка при выполнении перевода'));
         }
     }
 
+
+
     // Получение истории транзакций
     async getTransactions(req, res, next) {
-        const { accountId } = req.params;  // ID аккаунта из параметров
+        const userId = req.user.id;// Извлекаем userId из запроса, который добавлен middleware authMiddleWare
+
+        console.log('User ID:', userId);  // Добавьте логирование
 
         try {
-            const transactions = await TransactionModel.find({
-                $or: [{ senderAccount: accountId }, { receiverAccount: accountId }]  // Находим транзакции по отправителю или получателю
-            }).populate('senderAccount receiverAccount', 'email accountType');  // Подключаем данные аккаунтов отправителя и получателя
+            // Ищем все аккаунты пользователя
+            const userAccounts = await AccountModel.find({ userId });
 
+            // Если аккаунты не найдены
+            if (!userAccounts || userAccounts.length === 0) {
+                return next(ApiError.NotFound('У пользователя нет аккаунтов'));
+            }
+
+            // Ищем транзакции, где senderAccount или receiverAccount принадлежат пользователю
+            const transactions = await TransactionModel.find({
+                $or: [
+                    { senderAccount: { $in: userAccounts.map(acc => acc._id) } },
+                    { receiverAccount: { $in: userAccounts.map(acc => acc._id) } }
+                ]
+            })
+                .populate('senderAccount receiverAccount', 'accountNumber balance');  // Подключаем данные аккаунтов отправителя и получателя
+
+            // Если транзакции не найдены
             if (transactions.length === 0) {
                 return next(ApiError.NotFound('Нет транзакций для этого аккаунта'));
             }
 
+            // Отправляем найденные транзакции в ответе
             return res.json({ transactions });
         } catch (error) {
+            console.error('Ошибка при получении транзакций:', error);
             return next(ApiError.InternalServerError('Ошибка при получении транзакций'));
         }
     }
+
+
+
+
 
     // Получение транзакции по ID
     async getTransactionById(req, res, next) {
@@ -90,6 +116,33 @@ class TransactionController {
             return res.json({ transaction });
         } catch (error) {
             return next(ApiError.InternalServerError('Ошибка при получении транзакции'));
+        }
+    }
+    async cancelTransaction(req, res, next) {
+        const { id } = req.params;  // Извлекаем ID транзакции из параметров запроса
+
+        try {
+            // Находим транзакцию по ID
+            const transaction = await TransactionModel.findById(id);
+
+            if (!transaction) {
+                return next(ApiError.NotFound('Транзакция не найдена'));
+            }
+
+            // Проверяем, если транзакция уже завершена или отменена, то отменить нельзя
+            if (transaction.status === 'completed' || transaction.status === 'failed') {
+                return next(ApiError.BadRequest('Транзакция уже завершена или не может быть отменена'));
+            }
+
+            // Обновляем статус транзакции на "отменена"
+            transaction.status = 'failed';  // Можно использовать "cancelled" или любой другой статус
+            await transaction.save();
+
+            // Отправляем ответ
+            return res.json({ message: 'Транзакция успешно отменена', transaction });
+        } catch (error) {
+            console.error('Ошибка при отмене транзакции:', error);
+            return next(ApiError.InternalServerError('Ошибка при отмене транзакции'));
         }
     }
 
@@ -155,6 +208,23 @@ class TransactionController {
             return next(ApiError.InternalServerError('Ошибка при получении истории оплат'));
         }
     }
+    async getTransactionsByStatus(req, res, next) {
+        const { status } = req.query; // Получаем статус из query-параметра
+
+        try {
+            const transactions = await TransactionModel.find({ status })
+                .populate('senderAccount receiverAccount', 'accountNumber balance');
+            if (transactions.length === 0) {
+                return next(ApiError.NotFound('Нет транзакций с таким статусом'));
+            }
+
+            return res.json({ transactions });
+        } catch (error) {
+            console.error('Ошибка при получении транзакций по статусу:', error);
+            return next(ApiError.InternalServerError('Ошибка при получении транзакций'));
+        }
+    }
+
 }
 
 module.exports = new TransactionController();

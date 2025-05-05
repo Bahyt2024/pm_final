@@ -3,7 +3,7 @@ const userController = require('../controllers/user-controller');
 const accountController = require('../controllers/accountController');
 const transactionController = require('../controllers/transactionController');
 const reportController = require('../controllers/reportController');
-
+const CreditsController = require('../controllers/creditController');
 const { body } = require('express-validator');
 const authMiddleWare = require('../middlewares/auth-middleware');
 const roleMiddleware = require('../middlewares/roleMiddleware'); // Проверка ролей
@@ -35,6 +35,11 @@ router.get('/account/:accountId', authMiddleWare, accountController.getAccount);
 router.patch('/account/:accountId/update', authMiddleWare, accountController.updateAccount);
 router.get('/accounts', authMiddleWare, accountController.getAllAccounts);
 
+router.post('/credit/create', authMiddleWare, CreditsController.createCredit); // Создание кредита
+router.get('/credit/:creditId', authMiddleWare, CreditsController.getCredit); // Получение кредита по ID
+router.patch('/credit/:creditId/update', authMiddleWare, CreditsController.updateCredit); // Обновление кредита
+router.get('/credits', authMiddleWare, CreditsController.getAllCredits); // Получение всех кредитов для пользователя
+
 // 🟢 Транзакции
 router.post('/transaction/transfer', authMiddleWare, transactionController.transfer);
 
@@ -43,6 +48,7 @@ router.get('/transaction/:transactionId', authMiddleWare, transactionController.
 
 // Получение всех транзакций для пользователя
 router.get('/transactions', authMiddleWare, transactionController.getTransactions);
+router.delete('/transaction/:id/cancel', authMiddleWare, transactionController.cancelTransaction);
 
 // 🟢 Блокчейн
 
@@ -54,6 +60,8 @@ router.get('/transactions', authMiddleWare, transactionController.getTransaction
 router.get('/report/transactions', authMiddleWare, reportController.getTransactionsReport);
 router.get('/report/financial-summary', authMiddleWare, reportController.getFinancialSummary);
 router.get('/report/blockchain', authMiddleWare, reportController.getBlockchainReport);
+// Маршрут для отмены транзакции
+// router.delete('/transaction/:id/cancel', authMiddleWare, transactionController.cancelTransaction);
 
 // 🟢 Администрирование
 router.post('/admin/block-user', authMiddleWare, roleMiddleware(['admin']), userController.blockUser);
@@ -70,21 +78,5 @@ router.get('/payment/history', authMiddleWare, transactionController.getPaymentH
 
 
 
-
-// // 🏦 Управление счетами
-// router.post('/accounts', authMiddleWare, accountController.createAccount); // Создание счета
-// router.get('/accounts', authMiddleWare, accountController.getAccounts); // Получить все счета
-// router.get('/accounts/:id', authMiddleWare, accountController.getAccountById); // Получить счет по ID
-// router.delete('/accounts/:id', authMiddleWare, accountController.deleteAccount); // Удалить счет
-//
-// // 💰 Операции с транзакциями
-// router.post('/transactions/deposit', authMiddleWare, transactionController.deposit);
-// router.post('/transactions/withdraw', authMiddleWare, transactionController.withdraw); // Снятие средств
-// router.post('/transactions/transfer', authMiddleWare, transactionController.transfer); // Перевод между счетами
-// router.get('/transactions/history/:accountId', authMiddleWare, transactionController.getTransactionHistory); // История транзакций
-//
-// // 📊 Отчеты
-// router.get('/reports/account-statement/:accountId', authMiddleWare, reportController.getAccountStatement); // Выписка по счету
-// router.get('/reports/customer-transactions/:customerId', authMiddleWare, reportController.getCustomerTransactions); // Все транзакции клиента
 
 module.exports = router;

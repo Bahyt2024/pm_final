@@ -1,6 +1,7 @@
 const TransactionModel = require('../models/transaction-model');
 const AccountModel = require('../models/account-model');
 const ApiError = require('../exceptions/api-error');
+const ReportModel = require('../models/report-model');
 
 class ReportController {
     // Получение отчета о транзакциях
@@ -36,18 +37,36 @@ class ReportController {
     async getFinancialSummary(req, res, next) {
         try {
             const totalIncome = await TransactionModel.aggregate([
-                { $match: { status: 'completed' } }, // Только завершенные транзакции
+                { $match: { status: 'completed' } },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
             ]);
 
             const totalExpenses = await TransactionModel.aggregate([
-                { $match: { status: 'completed' } }, // Только завершенные транзакции
+                { $match: { status: 'completed' } },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
             ]);
 
+            const income = totalIncome[0] ? totalIncome[0].total : 0;
+            const expenses = totalExpenses[0] ? totalExpenses[0].total : 0;
+
+            // Проверка на наличие userId — обязательно!
+            if (!req.user || !req.user.id) {
+                return next(ApiError.BadRequest('Необходим userId для сохранения отчета'));
+            }
+
+            // Сохраняем отчет
+            await ReportModel.create({
+                userId: req.user.id,               // <-- пользователь
+                type: 'monthly',                   // <-- можешь изменить при необходимости
+                category: 'financial-summary',     // <-- произвольная категория
+                totalSpending: expenses,
+                totalIncome: income,
+                reportDate: new Date()
+            });
+
             return res.json({
-                totalIncome: totalIncome[0] ? totalIncome[0].total : 0,
-                totalExpenses: totalExpenses[0] ? totalExpenses[0].total : 0
+                totalIncome: income,
+                totalExpenses: expenses
             });
         } catch (error) {
             return next(ApiError.InternalServerError('Ошибка при получении финансового отчета'));
