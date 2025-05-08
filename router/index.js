@@ -7,7 +7,7 @@ const CreditsController = require('../controllers/creditController');
 const { body } = require('express-validator');
 const authMiddleWare = require('../middlewares/auth-middleware');
 const roleMiddleware = require('../middlewares/roleMiddleware'); // Проверка ролей
-
+const AviaticketController = require('../controllers/aviaTickerController');
 const router = new Router();
 
 // 🟢 Аутентификация
@@ -26,6 +26,19 @@ router.get('/users', authMiddleWare, roleMiddleware(['admin']), userController.g
 //
 
 
+router.post('/aviatickets/flight/add', authMiddleWare, roleMiddleware(['admin']), AviaticketController.addFlight);
+
+// ✈️ Все доступные рейсы
+router.get('/aviatickets/flights', authMiddleWare, AviaticketController.getAvailableFlights);
+
+// ✈️ Покупка билета
+router.post('/aviatickets/purchase', authMiddleWare, AviaticketController.purchaseTicket);
+
+// ✈️ Билеты текущего пользователя
+router.get('/aviatickets/my', authMiddleWare, AviaticketController.getMyTickets);
+
+// ✈️ Отмена билета
+router.delete('/aviatickets/:ticketId/cancel', authMiddleWare, AviaticketController.cancelTicket);
 
 
 

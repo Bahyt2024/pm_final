@@ -62,6 +62,7 @@ class AccountController {
         }
     }
 
+
     async updateAccount(req, res, next) {
         const { accountId } = req.params;
         const { balance } = req.body;

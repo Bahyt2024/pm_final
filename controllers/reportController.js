@@ -36,14 +36,41 @@ class ReportController {
     // Получение финансового сводного отчета
     async getFinancialSummary(req, res, next) {
         try {
+            const userId = req.user.id;
+            const userAccounts = await AccountModel.find({ userId }).select('_id');
+
+            const accountIds = userAccounts.map(account => account._id);
+
+            if (!accountIds.length) return 0;
+
             const totalIncome = await TransactionModel.aggregate([
-                { $match: { status: 'completed' } },
-                { $group: { _id: null, total: { $sum: '$amount' } } }
+                {
+                    $match: {
+                        receiverAccount: { $in: accountIds },
+                        status: 'completed'
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: '$amount' }
+                    }
+                }
             ]);
 
             const totalExpenses = await TransactionModel.aggregate([
-                { $match: { status: 'completed' } },
-                { $group: { _id: null, total: { $sum: '$amount' } } }
+                {
+                    $match: {
+                        senderAccount: { $in: accountIds },
+                        status: 'completed'
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: '$amount' }
+                    }
+                }
             ]);
 
             const income = totalIncome[0] ? totalIncome[0].total : 0;

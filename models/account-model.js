@@ -18,7 +18,7 @@ const accountSchema = new Schema({
     },
     currency: {
         type: String,
-        enum: ['USD', 'EUR', 'KZT'],
+        enum: ['USD', 'EUR', 'KZT','GBP', 'JPY','RUB'],
         default: 'USD'
     },
 
@@ -38,7 +38,7 @@ const accountSchema = new Schema({
     },
     cardType: {
         type: String,
-        enum: ['debit', 'credit'],
+        enum: ['Debit', 'Credit'],
         required: true
     },
 
