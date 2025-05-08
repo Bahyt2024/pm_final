@@ -19,7 +19,7 @@ class CreditController {
             const totalIncome = await TransactionModel.aggregate([
                 {
                     $match: {
-                        receiverAccount: { $in: accountIds },
+                        senderAccount: { $in: accountIds },
                         status: 'completed'
                     }
                 },
